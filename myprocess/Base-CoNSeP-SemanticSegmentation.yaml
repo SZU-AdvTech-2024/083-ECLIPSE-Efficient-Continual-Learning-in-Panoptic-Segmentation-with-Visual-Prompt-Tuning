@@ -1,0 +1,64 @@
+MODEL:
+  BACKBONE:
+    FREEZE_AT: 0              #控制在主干网络（backbone）中冻结的层数，0表示没有冻结的层。
+    NAME: "build_resnet_backbone"      #指定用于构建主干网络的函数。
+  WEIGHTS: "detectron2://ImageNetPretrained/torchvision/R-50.pkl"  #模型主干网络的预训练权重路径（此处为ResNet-50）。
+  PIXEL_MEAN: [123.675, 116.280, 103.530]      #每个通道的均值和标准差，用于对输入图像进行归一化。
+  PIXEL_STD: [58.395, 57.120, 57.375]
+  RESNETS:
+    DEPTH: 50           #ResNet网络的深度（此处为ResNet-50）。
+    STEM_TYPE: "basic"  # not used      #控制ResNet初始层的参数。
+    STEM_OUT_CHANNELS: 64
+    STRIDE_IN_1X1: False    #控制某些卷积层的步幅。
+    OUT_FEATURES: ["res2", "res3", "res4", "res5"]    #指定从主干网络提取的层。
+    # NORM: "SyncBN"
+    RES5_MULTI_GRID: [1, 1, 1]  # not used     #多尺度网格设置（在此配置中未使用）。
+DATASETS:
+  TRAIN: ("consep_train",)   #用于训练和测试的数据集名称，必须与Detectron2中注册的数据集名称一致。
+  TEST: ("consep_test",)
+SOLVER:
+  CHECKPOINT_PERIOD: 100      #每隔多少次迭代保存一次模型的检查点。
+  IMS_PER_BATCH: 16            #每个训练批次的图像数量。
+  BASE_LR: 0.0001        #优化器的基础学习率。
+  MAX_ITER: 160000          #最大训练迭代次数。
+  WARMUP_FACTOR: 1.0          #用于学习率预热，以缓解训练初期的梯度剧烈波动。
+  WARMUP_ITERS: 0
+  WEIGHT_DECAY: 0.05            #权重衰减，用于防止过拟合。
+  OPTIMIZER: "ADAMW"              #优化器类型，此处为ADAMW（Adam带权重衰减）。
+  LR_SCHEDULER_NAME: "WarmupPolyLR"      #学习率调度器名称，此处为"WarmupPolyLR"。
+  BACKBONE_MULTIPLIER: 0.1                #主干网络的学习率倍率，0.1表示主干网络的学习率是基础学习率的十分之一。
+  CLIP_GRADIENTS:                     #启用梯度裁剪以防止梯度过大，CLIP_VALUE和NORM_TYPE控制梯度裁剪的方式。
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 0.01
+    NORM_TYPE: 2.0
+  AMP:                                      # 启用自动混合精度以加速训练并减少内存占用。
+    ENABLED: True
+INPUT:                     
+  MIN_SIZE_TRAIN: !!python/object/apply:eval ["[int(x * 0.1 * 512) for x in range(5, 21)]"]  #控制训练和测试时输入图像的尺寸。
+  MIN_SIZE_TRAIN_SAMPLING: "choice"
+  MIN_SIZE_TEST: 512
+  MAX_SIZE_TRAIN: 2048
+  MAX_SIZE_TEST: 2048
+  CROP:                                   # 裁剪设置（此处未启用）。
+    ENABLED: False
+    TYPE: "absolute"
+    SIZE: (512, 512)
+    SINGLE_CATEGORY_MAX_AREA: 1.0
+  COLOR_AUG_SSD: True                             #启用基于SSD（Single Shot Multibox Detector）的颜色增强。
+  SIZE_DIVISIBILITY: 512  # used in dataset mapper       #确保输入图像的尺寸是该值的整数倍，有助于某些主干网络的兼容性
+  FORMAT: "RGB"                                                   #指定输入图像格式（RGB）。
+  DATASET_MAPPER_NAME: "mask_former_semantic"       #指定自定义的数据集映射器，这里使用mask_former_semantic处理分割掩码。
+TEST:
+  EVAL_PERIOD: 500            #每隔多少次迭代进行评估。
+  AUG:                      #测试时的数据增强设置（此处未启用）。
+    ENABLED: False
+    MIN_SIZES: [256, 384, 512, 640, 768, 896]
+    MAX_SIZE: 3584
+    FLIP: True
+DATALOADER:
+  FILTER_EMPTY_ANNOTATIONS: True        #过滤没有标注的图像。
+  NUM_WORKERS: 8                    #用于加载数据的线程数量。
+VERSION: 2                            #配置文件的版本号。
+CONT:
+  ORDER: !!python/object/apply:eval ["[x for x in range(1, 4)]"]     #在模型中定义一个顺序，用于处理模型训练时的类别顺序。
